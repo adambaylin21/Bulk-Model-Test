@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#f4efe3" />
+  <title>Bulk Model Test</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <header class="page-header">
+      <p class="eyebrow">MODEL TOOL</p>
+      <h1>Bulk Model Test</h1>
+      <p class="byline">by Adambaylin</p>
+    </header>
+
+    <nav class="tab-bar" role="tablist" aria-label="Khu vực làm việc">
+      <button class="tab-button is-active" id="tab-test" type="button" role="tab"
+        data-tab="test" aria-selected="true" aria-controls="panel-test">
+        Kiểm tra model
+      </button>
+      <button class="tab-button" id="tab-profiles" type="button" role="tab"
+        data-tab="profiles" aria-selected="false" aria-controls="panel-profiles">
+        Profile
+        <span class="tab-badge" id="tab-profile-count">0</span>
+      </button>
+    </nav>
+
+    <!-- ============ TAB: KIỂM TRA MODEL ============ -->
+    <section class="workspace" id="panel-test" role="tabpanel" aria-labelledby="tab-test">
+      <!-- ============ CỘT ĐIỀU KHIỂN ============ -->
+      <section class="panel control-panel" aria-labelledby="setup-heading">
+        <h2 id="setup-heading" class="panel-title">Thiết lập</h2>
+
+        <div class="profile-bar">
+          <label class="profile-bar-select" for="profile-select">
+            <span>Profile đã lưu</span>
+            <select id="profile-select">
+              <option value="">— Chưa lưu profile nào —</option>
+            </select>
+          </label>
+          <div class="profile-bar-actions">
+            <button class="mini-button" type="button" id="profile-load-btn">Nạp</button>
+            <button class="mini-button" type="button" id="profile-save-btn">Lưu lại</button>
+          </div>
+        </div>
+
+        <form class="control-form" id="test-form" autocomplete="off">
+          <label class="field" for="base-url">
+            <span>Base Url</span>
+            <input id="base-url" name="baseUrl" type="url" placeholder="https://api.example.com/v1" />
+          </label>
+
+          <label class="field" for="api-key">
+            <span>API Key</span>
+            <input id="api-key" name="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
+          </label>
+
+          <label class="field" for="model-name">
+            <span>Tên Model <em>(bỏ trống để test tất cả)</em></span>
+            <textarea id="model-name" name="modelName" rows="2"
+              placeholder="gpt-4&#10;llama-3.1-70b"></textarea>
+            <small class="hint" id="model-count">Mỗi dòng một model</small>
+          </label>
+
+          <label class="field" for="test-prompt">
+            <span>Prompt Test</span>
+            <input id="test-prompt" name="testPrompt" type="text" value="Hello" />
+          </label>
+
+          <label class="field" for="timeout">
+            <span>Timeout (giây)</span>
+            <input id="timeout" name="timeout" type="number" min="1" max="600" step="1" value="30" />
+          </label>
+
+          <div class="field concurrency-field">
+            <span>Test đồng thời <em>(số model chạy song song)</em></span>
+            <div class="concurrency-row">
+              <input id="concurrency" name="concurrency" type="range" min="1" max="32" step="1" value="8" />
+              <output class="concurrency-value" id="concurrency-value" for="concurrency">8</output>
+            </div>
+            <small class="hint" id="concurrency-hint">Tăng lên để test nhanh hơn, giảm xuống để đo chính xác hơn.</small>
+          </div>
+
+          <label class="check-row" for="auto-detect">
+            <input id="auto-detect" name="autoDetect" type="checkbox" checked />
+            <span class="checkbox" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9.2 16.2-3.4-3.4-1.4 1.4 4.8 4.8L20 8.2l-1.4-1.4z" /></svg></span>
+            <span>Auto Detect Model</span>
+          </label>
+
+          <label class="check-row" for="auto-start">
+            <input id="auto-start" name="autoStart" type="checkbox" />
+            <span class="checkbox" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9.2 16.2-3.4-3.4-1.4 1.4 4.8 4.8L20 8.2l-1.4-1.4z" /></svg></span>
+            <span>Chạy lại khi mở trang</span>
+          </label>
+
+          <div class="actions">
+            <button class="primary-button" type="submit" id="bulk-test-btn">Bulk Test</button>
+            <button class="ghost-button" type="button" id="cancel-btn" hidden>Dừng</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- ============ CỘT KẾT QUẢ ============ -->
+      <section class="panel result-panel" aria-labelledby="report-heading">
+        <h2 id="report-heading" class="panel-title">Báo cáo</h2>
+
+        <div class="status-strip" id="status-strip" data-state="idle" role="status" aria-live="polite">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span class="status-text" id="status-text">Sẵn sàng</span>
+          <span class="status-meta" id="status-meta"></span>
+        </div>
+
+        <div class="progress" id="progress" hidden>
+          <div class="progress-track">
+            <div class="progress-fill" id="progress-fill"></div>
+          </div>
+          <span class="progress-count" id="progress-count">0 / 0</span>
+        </div>
+
+        <div class="stat-row" id="stat-row">
+          <div class="stat"><span class="stat-label">Tổng</span><span class="stat-value" id="stat-total">0</span></div>
+          <div class="stat"><span class="stat-label">OK</span><span class="stat-value ok" id="stat-success">0</span></div>
+          <div class="stat"><span class="stat-label">Lỗi</span><span class="stat-value bad" id="stat-error">0</span></div>
+          <div class="stat"><span class="stat-label">TB</span><span class="stat-value" id="stat-avg">–</span></div>
+          <div class="stat"><span class="stat-label">Nhanh nhất</span><span class="stat-value" id="stat-fastest">–</span></div>
+        </div>
+
+        <div class="chart-wrap">
+          <canvas id="response-chart" height="200"></canvas>
+          <p class="empty-state" id="chart-empty">Biểu đồ sẽ hiển thị sau khi chạy.</p>
+        </div>
+
+        <div class="report-output" id="report-output" aria-live="polite">
+          <p class="empty-state">Kết quả kiểm tra sẽ hiển thị ở đây.</p>
+        </div>
+      </section>
+    </section>
+
+    <!-- ============ TAB: PROFILE ============ -->
+    <section class="profiles-layout" id="panel-profiles" role="tabpanel"
+      aria-labelledby="tab-profiles" hidden>
+
+      <section class="panel profile-editor-panel" aria-labelledby="profile-editor-heading">
+        <h2 id="profile-editor-heading" class="panel-title">
+          <span id="profile-editor-title">Thêm profile mới</span>
+          <em class="panel-title-note" id="profile-editor-state">Chưa lưu</em>
+        </h2>
+
+        <form class="control-form" id="profile-form" autocomplete="off">
+          <label class="field" for="profile-name">
+            <span>Tên profile</span>
+            <input id="profile-name" name="profileName" type="text" placeholder="Ví dụ: OpenAI chính" />
+          </label>
+
+          <label class="field" for="profile-base-url">
+            <span>Base Url</span>
+            <input id="profile-base-url" name="profileBaseUrl" type="url"
+              placeholder="https://api.example.com/v1" />
+          </label>
+
+          <label class="field" for="profile-api-key">
+            <span>Token / API Key</span>
+            <input id="profile-api-key" name="profileApiKey" type="password"
+              placeholder="sk-..." autocomplete="off" />
+          </label>
+
+          <label class="field" for="profile-model-name">
+            <span>Tên Model <em>(bỏ trống để test tất cả)</em></span>
+            <textarea id="profile-model-name" name="profileModelName" rows="2"
+              placeholder="gpt-4&#10;llama-3.1-70b"></textarea>
+          </label>
+
+          <label class="field" for="profile-prompt">
+            <span>Prompt Test</span>
+            <input id="profile-prompt" name="profilePrompt" type="text" placeholder="Hello" />
+          </label>
+
+          <div class="field-pair">
+            <label class="field" for="profile-timeout">
+              <span>Timeout (giây)</span>
+              <input id="profile-timeout" name="profileTimeout" type="number" min="1" max="600" step="1" placeholder="30" />
+            </label>
+            <label class="field" for="profile-concurrency">
+              <span>Test đồng thời</span>
+              <input id="profile-concurrency" name="profileConcurrency" type="number" min="1" max="64" step="1" placeholder="8" />
+            </label>
+          </div>
+
+          <label class="check-row" for="profile-auto-detect">
+            <input id="profile-auto-detect" name="profileAutoDetect" type="checkbox" checked />
+            <span class="checkbox" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9.2 16.2-3.4-3.4-1.4 1.4 4.8 4.8L20 8.2l-1.4-1.4z" /></svg></span>
+            <span>Auto Detect Model</span>
+          </label>
+
+          <label class="check-row" for="profile-auto-start">
+            <input id="profile-auto-start" name="profileAutoStart" type="checkbox" />
+            <span class="checkbox" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m9.2 16.2-3.4-3.4-1.4 1.4 4.8 4.8L20 8.2l-1.4-1.4z" /></svg></span>
+            <span>Chạy lại khi mở trang</span>
+          </label>
+
+          <label class="field" for="profile-notes">
+            <span>Ghi chú</span>
+            <textarea id="profile-notes" name="profileNotes" rows="2"
+              placeholder="Ví dụ: key của team, hạn mức 20$"></textarea>
+          </label>
+
+          <div class="actions">
+            <button class="primary-button" type="submit" id="profile-submit-btn">Lưu profile</button>
+            <button class="ghost-button" type="button" id="profile-reset-btn">Làm mới</button>
+          </div>
+          <p class="hint" id="profile-form-message" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <section class="panel profile-list-panel" aria-labelledby="profile-list-heading">
+        <h2 id="profile-list-heading" class="panel-title">
+          <span>Profile đã lưu</span>
+          <em class="panel-title-note" id="profile-storage-note">data/profiles.json</em>
+        </h2>
+
+        <div class="profile-toolbar">
+          <input class="profile-search" id="profile-search" type="search"
+            placeholder="Tìm theo tên hoặc Base Url…" aria-label="Tìm profile" />
+          <button class="mini-button" type="button" id="profile-refresh-btn">Tải lại</button>
+        </div>
+
+        <div class="profile-list" id="profile-list" aria-live="polite">
+          <p class="empty-state">Chưa có profile nào được lưu.</p>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

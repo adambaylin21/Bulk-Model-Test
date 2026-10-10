@@ -1,0 +1,48 @@
+# Môi trường ảo Python
+.venv/
+venv/
+env/
+
+# Cache và file biên dịch
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Gói build
+build/
+dist/
+*.egg-info/
+
+# Cache của công cụ
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Token và dữ liệu cục bộ (chứa API Key dạng thô, không commit)
+data/
+*.local.json
+
+# Biến môi trường (giữ lại file mẫu để người khác biết cần điền gì)
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Log và file tạm
+*.log
+*.tmp
+*.bak
+*.orig
+*.rej
+
+# Hệ điều hành
+.DS_Store
+Thumbs.db
+
+# Trình soạn thảo
+.idea/
+.vscode/
+*.swp
