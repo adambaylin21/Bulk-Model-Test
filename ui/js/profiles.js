@@ -1,6 +1,6 @@
-/* Tab Profile: CRUD profile lưu trong data/profiles.json và thanh chọn nhanh. */
+/* Tab Profile: đọc/ghi profiles.json và thanh chọn nhanh. */
 
-import { api } from "./api.js";
+import * as api from "./api.js";
 import { $, esc, fmtDate, maskToken } from "./utils.js";
 
 const ACTIVE_KEY = "bmt.activeProfile";
@@ -10,6 +10,7 @@ let editingId = "";
 let activeId = "";
 let applyProfile = () => {};
 let collectForm = () => ({});
+let savedPath = "";
 
 export function getProfile(id) {
   return profiles.find((p) => p.id === id) || null;
@@ -106,6 +107,10 @@ function message(text, kind = "") {
   el.dataset.kind = kind;
 }
 
+function storageLabel(name) {
+  return savedPath ? savedPath : `data/${name || "profiles.json"}`;
+}
+
 /* ------------------------------------------------------------- form <-> state */
 
 function readForm() {
@@ -148,7 +153,8 @@ async function refresh() {
   try {
     const data = await api.listProfiles();
     profiles = data.profiles || [];
-    $("profile-storage-note").textContent = `data/${data.storage || "profiles.json"}`;
+    savedPath = data.path || "";
+    $("profile-storage-note").textContent = storageLabel(data.storage);
     renderList();
     renderSelect();
   } catch (err) {
@@ -171,7 +177,8 @@ async function submitForm(event) {
     await refresh();
     fillForm(null);
     setActive(profile.id);
-    message(`Đã lưu “${profile.name}” vào data/profiles.json.`, "ok");
+    applyProfile(profile);
+    message(`Đã lưu “${profile.name}” vào ${storageLabel()}.`, "ok");
   } catch (err) {
     message(`Không lưu được: ${err.message}`, "bad");
   }
@@ -200,14 +207,14 @@ function useProfile(profile) {
 }
 
 /** Lưu các giá trị đang có ở cột Thiết lập thành profile. */
-async function saveFromForm() {
+export async function saveFromForm() {
   const existing = getProfile($("profile-select").value) || getProfile(editingId);
   const { base_url, api_key, model_name, test_prompt, timeout, concurrency,
     auto_detect, auto_start } = collectForm();
 
   if (!base_url) {
     message("Cần nhập Base Url ở tab Kiểm tra model trước.", "bad");
-    return;
+    return null;
   }
 
   try {
@@ -220,9 +227,38 @@ async function saveFromForm() {
     });
     await refresh();
     setActive(profile.id);
-    message(`Đã lưu “${profile.name}” vào data/profiles.json.`, "ok");
+    message(`Đã lưu “${profile.name}” vào ${storageLabel()}.`, "ok");
+    return profile;
   } catch (err) {
     message(`Không lưu được: ${err.message}`, "bad");
+    return null;
+  }
+}
+
+/** Ghi lại các giá trị đang nhập vào profile đang dùng, im lặng. */
+export async function rememberFormValues() {
+  const profile = getProfile(activeId);
+  if (!profile) return null;
+  const values = collectForm();
+  try {
+    const { profile: saved } = await api.saveProfile({
+      id: profile.id,
+      name: profile.name,
+      base_url: values.base_url,
+      model_name: values.model_name,
+      test_prompt: values.test_prompt,
+      timeout: values.timeout,
+      concurrency: values.concurrency,
+      auto_detect: values.auto_detect,
+      auto_start: values.auto_start,
+      notes: profile.notes,
+    });
+    const index = profiles.findIndex((p) => p.id === saved.id);
+    if (index >= 0) profiles[index] = saved;
+    renderList();
+    return saved;
+  } catch (_) {
+    return null;
   }
 }
 

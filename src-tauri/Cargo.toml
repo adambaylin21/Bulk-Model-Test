@@ -1,0 +1,26 @@
+[package]
+name = "bulk-model-test"
+description = "Bulk Model Test - đo thời gian phản hồi của mọi model trên một endpoint OpenAI-compatible"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT"
+
+[lib]
+name = "bulk_model_test_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+bmt-core = { path = "../bmt-core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+
+[[bin]]
+name = "bulk-model-test"
+path = "src/main.rs"

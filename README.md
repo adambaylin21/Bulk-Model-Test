@@ -2,37 +2,66 @@
 
 Đo thời gian phản hồi của mọi model mà một API key OpenAI-compatible chạm được, rồi báo cáo xếp từ nhanh đến chậm. Có thể lưu nhiều profile (nhiều token) để chuyển qua lại nhanh.
 
+Ứng dụng desktop viết bằng **Rust + Tauri 2**: cửa sổ riêng, giao diện và toàn bộ phần gọi API chạy trong máy, không mở cổng mạng và không cần trình duyệt.
+
 ## Chạy
 
 ```bash
-uv venv
-uv pip install -r requirements.txt
-uv run app.py
+cargo run -p bulk-model-test
 ```
 
-Mở http://localhost:8686
+Lần chạy đầu sẽ tải và biên dịch các gói phụ thuộc, mất vài phút.
+
+## Bản ứng dụng
+
+Đóng gói thành ứng dụng macOS. Cần Rust và `cargo-tauri`:
+
+```bash
+cargo install tauri-cli --version '^2' --locked
+./build_app.sh
+```
+
+Kết quả:
+
+| Tệp | Dùng khi |
+| --- | --- |
+| `target/release/bundle/macos/Bulk Model Test.app` | Mở như ứng dụng thường |
+| `target/release/bundle/dmg/Bulk Model Test_1.0.0_*.dmg` | Bộ cài để chia sẻ |
+
+Icon lấy từ `Icon.png` ở gốc dự án và đã được tạo sẵn vào `src-tauri/icons/` (dựng lại bằng `sips` và `iconutil` khi cần). Dữ liệu profile nằm ở `~/Library/Application Support/Bulk Model Test/profiles.json`, đổi được bằng biến môi trường `BMT_DATA_DIR`. Nút **Mở thư mục dữ liệu** trong tab Báo cáo mở thẳng thư mục đó.
 
 ## Cấu trúc thư mục
 
 ```
-app.py              điểm khởi động Flask
-backend/            package backend
-  config.py         đường dẫn, hằng số, bộ lọc model không phục vụ chat
-  params.py         chuẩn hoá tham số chạy và dữ liệu profile
-  profiles.py       đọc/ghi data/profiles.json
-  runner.py         gọi API, chạy bulk test, phát tiến độ
-  routes.py         các route HTTP
-static/             giao diện
+Cargo.toml            workspace Rust (bmt-core, src-tauri)
+bmt-core/             lõi dùng chung cho ứng dụng, CLI và server lúc phát triển
+  src/config.rs       đường dẫn, hằng số, bộ lọc model không phục vụ chat
+  src/params.rs       chuẩn hoá tham số chạy và dữ liệu profile
+  src/profiles.rs     đọc/ghi profiles.json (ghi nguyên tử)
+  src/api.rs          gọi /v1/models và /v1/chat/completions, đo thời gian
+  src/runner.rs       chạy bulk test song song, phát tiến độ
+  src/service.rs      mặt tiền cho các lệnh của Tauri
+  src/bin/bmt-cli.rs  bản dòng lệnh
+  src/bin/dev-server.rs  server HTTP cục bộ để mở giao diện bằng trình duyệt
+  tests/mock_api.rs   test tích hợp với server OpenAI giả
+src-tauri/            ứng dụng desktop
+  src/lib.rs          các lệnh Tauri (IPC) mà giao diện gọi
+  src/selftest.rs     tự kiểm tra lệnh và giao diện
+  tauri.conf.json     cấu hình cửa sổ và gói
+  capabilities/       quyền tối thiểu cấp cho cửa sổ
+ui/                   giao diện (HTML, CSS, ES module)
   index.html
   styles.css
-  js/main.js        khởi động, nối các tab
-  js/run.js         tab Kiểm tra model
-  js/profiles.js    tab Profile
-  js/api.js         gọi endpoint backend
-  js/utils.js       tiện ích chung
-  js/ui/tabs.js     chuyển tab
-cli/bulk_test.py    bản dòng lệnh
-data/profiles.json  nơi lưu profile (tự tạo khi lưu lần đầu)
+  js/bridge.js        cầu nối Tauri, có nhánh dự phòng qua HTTP
+  js/api.js           nghiệp vụ: profile, model, lượt chạy
+  js/run.js           tab Kiểm tra model
+  js/profiles.js      tab Profile
+  js/main.js          khởi động, nối các tab
+  js/utils.js         tiện ích chung
+  js/ui/tabs.js       chuyển tab
+  vendor/chart.umd.js Chart.js 4 (đi kèm, không tải từ mạng)
+legacy/               bản Python cũ (Flask + PyInstaller) để tham chiếu
+data/profiles.json    nơi lưu profile khi chạy CLI (tự tạo khi lưu lần đầu)
 ```
 
 ## Hai tab
@@ -41,14 +70,14 @@ data/profiles.json  nơi lưu profile (tự tạo khi lưu lần đầu)
 
 1. **Profile đã lưu** — chọn một profile rồi bấm **Nạp** để điền sẵn mọi trường, hoặc bấm **Lưu lại** để lưu các giá trị đang nhập thành profile
 2. **Base Url** — endpoint tương thích OpenAI SDK, thường kết thúc bằng `/v1`
-3. **API Key** — khoá của bạn, gửi tới backend để gọi API
+3. **API Key** — khoá của bạn
 4. **Tên Model** — bỏ trống khi muốn test toàn bộ, hoặc ghi mỗi model một dòng
 5. **Auto Detect Model** — bật để lấy danh sách từ `/v1/models`
 6. **Prompt Test** — câu hỏi gửi tới, mặc định `Hello`
 7. **Timeout** — giây chờ mỗi model, mặc định 30
 8. **Test đồng thời** — số model chạy song song, từ 1 đến 32
 
-Trong lúc chạy, bảng cập nhật từng dòng, thanh tiến độ đếm số model đã xong, biểu đồ vẽ dần. Nút **Dừng** huỷ phiên test.
+Trong lúc chạy, bảng cập nhật từng dòng, thanh tiến độ đếm số model đã xong, biểu đồ vẽ dần. Nút **Dừng** huỷ phiên test. Nút **Lưu JSON** ghi báo cáo gần nhất ra file.
 
 ### Tab Profile
 
@@ -60,9 +89,9 @@ Lưu nhiều bộ tuỳ chọn, mỗi bộ gồm tên, Base Url, token, danh sá
 - **Xoá** — bỏ profile, có hỏi xác nhận
 - **Tìm theo tên hoặc Base Url** — lọc danh sách đang hiển thị
 
-Token hiện trong danh sách ở dạng che bớt (`gsk_…mnop`). Bỏ trống ô Token lúc cập nhật thì token cũ được giữ nguyên. Đổi Base Url rồi bấm **Lưu lại** sẽ ghi đè token đang nhập.
+Token hiện trong danh sách ở dạng che bớt (`gsk_…mnop`). Bỏ trống ô Token lúc cập nhật thì token cũ được giữ nguyên.
 
-Dữ liệu nằm trong `data/profiles.json`:
+Dữ liệu nằm trong `profiles.json`:
 
 ```json
 {
@@ -71,6 +100,8 @@ Dữ liệu nằm trong `data/profiles.json`:
   "profiles": [
     {
       "id": "541665d154cd",
+      "created_at": "2026-10-10T17:20:30",
+      "updated_at": "2026-10-10T17:20:30",
       "name": "Mock local",
       "base_url": "http://127.0.0.1:8899/v1",
       "api_key": "mock-key",
@@ -86,90 +117,61 @@ Dữ liệu nằm trong `data/profiles.json`:
 }
 ```
 
-Ghi file theo cách nguyên tử (ghi file tạm rồi đổi tên) nên không hỏng dữ liệu khi tiến trình dừng giữa chừng. Thư mục `data/` nằm ngoài mã nguồn và không được commit.
+Ghi file theo cách nguyên tử (ghi file tạm rồi đổi tên) nên không hỏng dữ liệu khi tiến trình dừng giữa chừng. Trường lạ trong file do bản khác ghi vẫn được giữ nguyên khi ghi lại.
 
-**Lưu ý bảo mật:** tool lưu token dạng thô trong `data/profiles.json`. Đây là công cụ chạy trên máy cá nhân; đừng dùng chung file này hoặc commit nó lên.
+**Lưu ý bảo mật:** tool lưu token dạng thô trong `profiles.json`. Đây là công cụ chạy trên máy cá nhân; đừng dùng chung file này hoặc commit nó lên.
 
 ## Kết quả
 
-Bảng xếp model thành công theo thời gian tăng dần, các model lỗi nằm cuối. Mỗi dòng hiện thời gian, trạng thái và nội dung trả về (hoặc thông báo lỗi). Cửa sổ báo cáo cao tối thiểu 460px và tối đa 72% chiều cao màn hình.
+Bảng xếp model thành công theo thời gian tăng dần, các model lỗi nằm cuối. Mỗi dòng hiện thứ hạng, tên model, thời gian, trạng thái và nội dung trả về (hoặc thông báo lỗi).
 
 Biểu đồ cột tương ứng: xanh là thành công, đỏ là lỗi. Trục ngang là tên model, trục dọc là mili giây.
 
 ## Bản dòng lệnh
 
 ```bash
-uv run cli/bulk_test.py --base-url http://localhost:8899/v1 --api-key mock --test-prompt "Hello"
+cargo run --bin bmt-cli -- --base-url http://localhost:8899/v1 --api-key mock --test-prompt "Hello"
 ```
 
-Thêm `--output report.json` để lưu báo cáo và `--chart-data chart.json` để lưu dữ liệu biểu đồ.
+Thêm `--output report.json` để lưu báo cáo và `--chart-data chart.json` để lưu dữ liệu biểu đồ. `--auto-detect` lấy danh sách model từ API; `--timeout` và `--concurrency` chỉnh thời gian chờ và số luồng.
 
-## API
+## Giao diện lúc phát triển
 
-| Endpoint | Method | Mô tả |
-| --- | --- | --- |
-| `/` | GET | Giao diện |
-| `/api/profiles` | GET | Danh sách profile đã lưu |
-| `/api/profiles` | POST | Thêm mới hoặc cập nhật một profile |
-| `/api/profiles/<id>` | DELETE | Xoá một profile |
-| `/api/profiles/<id>/used` | POST | Ghi nhận thời điểm dùng gần nhất |
-| `/api/test/stream` | POST | Chạy và stream tiến độ (SSE) |
-| `/api/test/bulk` | POST | Chạy xong rồi mới trả kết quả |
-| `/api/test/cancel` | POST | Dừng phiên đang chạy |
-| `/api/models` | POST | Xem trước danh sách model |
-| `/api/models/parse` | POST | Đếm số model nhập tay |
+Cửa sổ Tauri và trình duyệt dùng chung một giao diện. Muốn xem nhanh bằng trình duyệt (thanh công cụ DevTools quen thuộc, không cần build lại):
 
-Body cho các endpoint POST chạy test:
-
-```json
-{
-  "base_url": "https://api.example.com/v1",
-  "api_key": "sk-...",
-  "model_name": "gpt-4, llama-3.1-70b",
-  "auto_detect": true,
-  "test_prompt": "Hello",
-  "timeout": 30,
-  "concurrency": 8,
-  "profile_id": "541665d154cd"
-}
+```bash
+cargo run --bin dev-server
 ```
 
-`model_name` và `auto_detect` chỉ cần một trong hai. `profile_id` là tuỳ chọn: khi Base Url trùng với profile đã lưu, báo cáo ghi kèm tên profile.
+Mở http://127.0.0.1:8686. Lệnh này phục vụ `ui/` và bày các thao tác giống hệt qua HTTP, chỉ dùng khi phát triển; ứng dụng desktop không mở cổng nào.
 
-Body để lưu profile:
+## Tự kiểm tra
 
-```json
-{
-  "id": "541665d154cd",
-  "name": "Mock local",
-  "base_url": "http://localhost:8899/v1",
-  "api_key": "mock-key",
-  "model_name": "",
-  "test_prompt": "Hello",
-  "timeout": 30,
-  "concurrency": 4,
-  "auto_detect": true,
-  "auto_start": false,
-  "notes": "key của team"
-}
+```bash
+cargo test --workspace            # test lõi + test với server OpenAI giả
+
+BMT_SELFTEST=1 BMT_DATA_DIR=/tmp/bmt-appdata cargo run --release
+BMT_UITEST=1   BMT_DATA_DIR=/tmp/bmt-appdata cargo run --release
 ```
 
-Bỏ `id` để thêm mới. Bỏ `api_key` khi cập nhật để giữ token cũ. Base Url là bắt buộc.
+`BMT_SELFTEST` chạy đúng các lệnh IPC (đọc/ghi profile, xem trước model, chạy test, dừng giữa chừng, lưu báo cáo) rồi in kết quả. `BMT_UITEST` thao tác thật trong cửa sổ: gõ form, bấm Bulk Test, xem bảng và biểu đồ, lưu rồi xoá profile. Cả hai tự thoát khi xong và ghi kết quả ra `/tmp/bmt-selftest.json` và `/tmp/bmt-uitest.json`.
 
 ## Ghi chú kỹ thuật
 
-- Số model chạy song song lấy từ thanh trượt, tối đa 32. Backend cũng chặn cứng ở 64.
-- Test song song tốn tài nguyên hơn nhưng cho kết quả nhanh hơn
+- Số model chạy song song lấy từ thanh trượt, tối đa 32. Lõi cũng chặn cứng ở 64.
+- Ứng dụng gửi yêu cầu bằng một HTTP client dùng chung nên danh sách model dài vẫn chạy song song thật.
 - Ở mức cao, thời gian đo được có thể phản ánh tải của server thay vì tốc độ thật của model
 - Lọc bỏ các model không phục vụ chat: embedding, whisper, tts, dall-e, moderation, rerank…
 - Mỗi model gửi một chat completion với `max_tokens=16`, `temperature=0`
-- Tiến độ truyền qua Server-Sent Events tại `POST /api/test/stream`
-- Tab đang mở và báo cáo gần nhất được nhớ trong `localStorage`; danh sách profile nằm ở backend
+- Tiến độ truyền từ Rust sang giao diện qua kênh IPC; bản chạy trong trình duyệt dùng Server-Sent Events
+- Model có thể trả nội dung ở `message.content` hoặc `message.reasoning`; cả hai đều được hiển thị
+- Tab đang mở và báo cáo gần nhất được nhớ trong `localStorage`; danh sách profile nằm ở file JSON
+- Token không bao giờ được ghi vào `localStorage`
 
-## Cổng
+## Bản Python cũ
 
-Mặc định 8686. Đổi bằng biến môi trường:
+`legacy/` giữ nguyên bản Flask + PyInstaller trước đây để tham chiếu:
 
 ```bash
-PORT=5000 uv run app.py
+cd legacy && uv pip install -r requirements.txt && BMT_DATA_DIR=../data uv run app.py
 ```

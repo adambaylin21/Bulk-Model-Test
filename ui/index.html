@@ -104,7 +104,13 @@
 
       <!-- ============ CỘT KẾT QUẢ ============ -->
       <section class="panel result-panel" aria-labelledby="report-heading">
-        <h2 id="report-heading" class="panel-title">Báo cáo</h2>
+        <h2 id="report-heading" class="panel-title">
+          <span>Báo cáo</span>
+          <span class="panel-title-actions">
+            <button class="mini-button" type="button" id="report-save-btn">Lưu JSON</button>
+            <button class="mini-button" type="button" id="data-open-btn" hidden>Mở thư mục dữ liệu</button>
+          </span>
+        </h2>
 
         <div class="status-strip" id="status-strip" data-state="idle" role="status" aria-live="polite">
           <span class="status-dot" aria-hidden="true"></span>
@@ -231,9 +237,11 @@
         </div>
       </section>
     </section>
+
+    <p class="app-footnote" id="app-footnote" role="status" aria-live="polite"></p>
   </main>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script type="module" src="/js/main.js"></script>
+  <script src="vendor/chart.umd.js"></script>
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>

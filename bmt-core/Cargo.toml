@@ -1,0 +1,34 @@
+[package]
+name = "bmt-core"
+description = "Đo thời gian phản hồi của mọi model trên một endpoint OpenAI-compatible"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
+crossbeam-channel = "0.5"
+reqwest = { version = "0.12", features = ["json", "blocking"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+
+# Chỉ dùng cho `cargo run --bin dev-server`, tức bản chạy trong trình duyệt lúc
+# phát triển. Ứng dụng Tauri không cần những gói này.
+axum = "0.7"
+futures-util = "0.3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "fs", "sync"] }
+tokio-stream = "0.1"
+
+[dev-dependencies]
+tiny_http = "0.12"
+
+# Bản dòng lệnh dùng chung crate này; dev-server là server lúc phát triển.
+[[bin]]
+name = "bmt-cli"
+path = "src/bin/bmt-cli.rs"
+
+[[bin]]
+name = "dev-server"
+path = "src/bin/dev-server.rs"

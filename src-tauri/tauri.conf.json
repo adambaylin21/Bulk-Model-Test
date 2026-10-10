@@ -1,0 +1,47 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Bulk Model Test",
+  "version": "1.0.0",
+  "identifier": "com.adambaylin.bulkmodeltest",
+  "build": {
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Bulk Model Test",
+        "width": 1280,
+        "height": 860,
+        "minWidth": 720,
+        "minHeight": 560,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    },
+    "withGlobalTauri": true
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "app",
+      "dmg"
+    ],
+    "category": "DeveloperTool",
+    "shortDescription": "Đo thời gian phản hồi của mọi model trên một API key",
+    "longDescription": "Bulk Model Test gửi một câu hỏi ngắn tới mọi model mà một API key OpenAI-compatible chạm được, đo thời gian phản hồi rồi xếp từ nhanh đến chậm.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    }
+  }
+}

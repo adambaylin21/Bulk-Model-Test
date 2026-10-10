@@ -732,3 +732,18 @@ button, input, textarea { font: inherit; color: inherit; }
   .profile-bar { flex-direction: column; align-items: stretch; }
   .profile-bar-actions { justify-content: flex-end; }
 }
+/* ===== TIÊU ĐỀ CÓ NÚT VÀ GHI CHÚ CUỐI TRANG ===== */
+.panel-title-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.app-footnote {
+  margin: 14px 0 0;
+  min-height: 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+  word-break: break-all;
+}
+

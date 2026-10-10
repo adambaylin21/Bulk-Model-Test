@@ -1,18 +1,21 @@
-/* Tab kiểm tra model: form, stream tiến độ và hiển thị báo cáo. */
+/* Tab kiểm tra model: form, tiến độ và báo cáo. */
 
-import { api } from "./api.js";
+import * as api from "./api.js";
 import { $, esc, fmtMs } from "./utils.js";
 
 const FORM_KEY = "bmt.form";
 const REPORT_KEY = "bmt.lastRun";
 
 let chart = null;
-let controller = null;
 let jobId = null;
 let rows = [];
 let total = 0;
 let doneCount = 0;
 let running = false;
+let cancelled = false;
+let getActiveProfileId = () => "";
+let saveFormQuietly = () => {};
+let afterRun = () => {};
 
 /* ------------------------------------------------------ form state (dùng chung) */
 
@@ -171,6 +174,7 @@ function resetPanels() {
   rows = [];
   total = 0;
   doneCount = 0;
+  cancelled = false;
   $("progress").hidden = false;
   $("progress-fill").style.width = "0%";
   $("progress-count").textContent = "0 / 0";
@@ -183,25 +187,20 @@ function resetPanels() {
 
 function saveForm() {
   localStorage.setItem(FORM_KEY, JSON.stringify(collectForm()));
+  saveFormQuietly();
 }
 
-/* ------------------------------------------------------------------- SSE */
+/* ----------------------------------------------------------------- START */
 
 async function start() {
   if (running) return;
   const params = { ...collectForm(), profile_id: getActiveProfileId() };
 
   if (!params.base_url || !params.api_key) {
-    const msg = "Vui lòng nhập Base Url và API Key.";
-    $("report-output").innerHTML = `<p class="error error-pad">${esc(msg)}</p>`;
-    setStatus("error", msg);
-    return;
+    return fail("Vui lòng nhập Base Url và API Key.");
   }
   if (!params.model_name && !params.auto_detect) {
-    const msg = "Nhập tên model hoặc bật Auto Detect Model.";
-    $("report-output").innerHTML = `<p class="error error-pad">${esc(msg)}</p>`;
-    setStatus("error", msg);
-    return;
+    return fail("Nhập tên model hoặc bật Auto Detect Model.");
   }
 
   saveForm();
@@ -209,61 +208,26 @@ async function start() {
   setRunning(true);
   setStatus("running", "Đang kết nối…");
 
-  controller = new AbortController();
   try {
-    const res = await fetch("/api/test/stream", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(params),
-      signal: controller.signal,
-    });
-
-    if (!res.ok || !res.body) {
-      let detail = `HTTP ${res.status}`;
-      try {
-        const payload = await res.json();
-        detail = payload.error || detail;
-      } catch (_) { /* giữ mã trạng thái */ }
-      throw new Error(detail);
-    }
-
-    await readStream(res.body);
-  } catch (err) {
-    if (err.name === "AbortError") return;
-    finish("error", `Không kết nối được server: ${err.message}`);
+    jobId = await api.startRun(params, handleEvent);
+  } catch (error) {
+    finish("error", `Không chạy được: ${error.message}`);
+    return;
   }
+  if (!jobId && running) finish("error", "Không nhận được mã phiên chạy.");
 }
 
-async function readStream(body) {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      let split;
-      while ((split = buffer.indexOf("\n\n")) >= 0) {
-        const chunk = buffer.slice(0, split).trim();
-        buffer = buffer.slice(split + 2);
-        if (!chunk || chunk.startsWith(":")) continue;
-        const raw = chunk.replace(/^data:\s*/, "");
-        try { handleEvent(JSON.parse(raw)); } catch (_) { /* bỏ qua gói hỏng */ }
-      }
-    }
-  } catch (err) {
-    if (err.name === "AbortError") return;
-    finish("error", `Mất kết nối với server: ${err.message}`);
-  }
+function fail(message) {
+  $("report-output").innerHTML = `<p class="error error-pad">${esc(message)}</p>`;
+  setStatus("error", message);
 }
+
+/* --------------------------------------------------------- tiến độ & kết quả */
 
 function handleEvent(msg) {
   switch (msg.event) {
     case "job":
-      jobId = msg.job_id;
+      jobId = msg.job_id || jobId;
       setStatus("running", "Đang tải danh sách model…");
       break;
 
@@ -332,6 +296,11 @@ function handleEvent(msg) {
       finish("cancelled", `Đã dừng sau ${msg.completed} model`);
       break;
 
+    case "closed":
+      if (running) finish(cancelled ? "cancelled" : "error",
+        cancelled ? "Đã dừng thủ công" : "Server đóng kết nối trước khi test xong.");
+      break;
+
     case "error":
       finish("error", msg.message);
       break;
@@ -341,6 +310,7 @@ function handleEvent(msg) {
 function finish(state, text, meta = "") {
   setRunning(false);
   setStatus(state, text, meta);
+  jobId = null;
   if (state === "done") {
     $("progress-fill").style.width = "100%";
     $("progress-count").textContent = `${doneCount} / ${total}`;
@@ -352,14 +322,14 @@ function finish(state, text, meta = "") {
     $("response-chart").hidden = true;
     $("chart-empty").hidden = false;
   }
+  afterRun();
 }
 
 async function cancelRun() {
-  controller?.abort();
-  controller = null;
+  cancelled = true;
   try {
-    await api.cancelRun(jobId);
-  } catch (_) { /* server có thể đã dừng */ }
+    await api.cancelRun(jobId || "");
+  } catch (_) { /* phiên chạy có thể đã dừng */ }
   if (running) finish("cancelled", "Đã dừng thủ công");
 }
 
@@ -413,10 +383,10 @@ function restoreReport() {
     new Date(report.timestamp).toLocaleString("vi-VN"));
 }
 
-let getActiveProfileId = () => "";
-
-export function initRun({ getProfileId } = {}) {
+export function initRun({ getProfileId, saveActiveProfile, onRunFinished } = {}) {
   getActiveProfileId = getProfileId || (() => "");
+  saveFormQuietly = saveActiveProfile || (() => {});
+  afterRun = onRunFinished || (() => {});
 
   $("test-form").addEventListener("submit", (e) => { e.preventDefault(); start(); });
   $("cancel-btn").addEventListener("click", cancelRun);
@@ -446,7 +416,7 @@ export function initRun({ getProfileId } = {}) {
   syncModelField();
   restoreReport();
 
-  return { getProfileId: getActiveProfileId };
+  return { isRunning: () => running };
 }
 
 /** Chạy test nếu người dùng đã bật "Chạy lại khi mở trang". */

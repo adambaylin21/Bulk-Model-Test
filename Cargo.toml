@@ -1,0 +1,15 @@
+[workspace]
+members = ["bmt-core", "src-tauri"]
+resolver = "2"
+
+[workspace.package]
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.77"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

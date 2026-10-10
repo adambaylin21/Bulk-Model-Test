@@ -1,18 +1,21 @@
-# Môi trường ảo Python
-.venv/
-venv/
-env/
+# Rust
+/target/
+**/*.rs.bk
 
-# Cache và file biên dịch
+# Tauri
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# Dữ liệu người dùng (chứa API Key dạng thô, không commit)
+data/
+
+# Bản Python cũ: môi trường ảo, gói build, cache
+legacy/.venv/
+legacy/venv/
+legacy/build/
+legacy/dist/
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-
-# Gói build
-build/
-dist/
-*.egg-info/
 
 # Cache của công cụ
 .pytest_cache/
@@ -21,8 +24,7 @@ dist/
 .coverage
 htmlcov/
 
-# Token và dữ liệu cục bộ (chứa API Key dạng thô, không commit)
-data/
+# Token và dữ liệu cục bộ
 *.local.json
 
 # Biến môi trường (giữ lại file mẫu để người khác biết cần điền gì)
