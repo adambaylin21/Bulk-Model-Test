@@ -70,6 +70,61 @@ pub fn ui_selftest(app: &tauri::AppHandle) {
                           profileCount: D("tab-profile-count").textContent,
                           chartLib: typeof window.Chart };
 
+          // Hồi quy: chuyển profile chỉ được nạp dữ liệu, không được ghi ngược lại
+          // file profile (profile vừa rời đi từng bị ghi đè bằng dữ liệu profile mới).
+          try {
+            const ipc = (command, args) => window.__TAURI__.core.invoke(command, args);
+            const listProfiles = async () => (await ipc("profiles_list")).profiles;
+            const snapshot = async (id) => {
+              const found = (await listProfiles()).find((profile) => profile.id === id);
+              return { base_url: found.base_url, api_key: found.api_key, model_name: found.model_name,
+                       test_prompt: found.test_prompt, timeout: found.timeout, concurrency: found.concurrency };
+            };
+            const create = async (values) =>
+              (await ipc("profile_save", { input: values })).profile.id;
+            const pick = async (id) => {
+              D("profile-select").value = id;
+              D("profile-select").dispatchEvent(new Event("change"));
+              await sleep(300);
+            };
+
+            const alpha = { name: "Hồi quy A", base_url: "https://alpha.example/v1", api_key: "mock-key-alpha",
+                            model_name: "alpha-only", test_prompt: "Alpha prompt", timeout: 11, concurrency: 3 };
+            const beta = { name: "Hồi quy B", base_url: "https://beta.example/v1", api_key: "mock-key-beta",
+                           model_name: "beta-only", test_prompt: "Beta prompt", timeout: 33, concurrency: 5 };
+            const alphaId = await create(alpha);
+            const betaId = await create(beta);
+
+            D("profile-refresh-btn").click();
+            await waitFor("danh sách profile", () => D("profile-select").querySelector(`option[value="${alphaId}"]`));
+
+            await pick(alphaId);
+            const before = await snapshot(alphaId);
+            await pick(betaId);
+            const after = await snapshot(alphaId);
+            const wrongWrites = Object.keys(alpha)
+              .filter((key) => key !== "name" && before[key] !== after[key]);
+
+            log.switchProfile = {
+              ok: wrongWrites.length === 0,
+              alphaFromDisk: before,
+              alphaAfterSwitch: after,
+              betaOnForm: { base_url: D("base-url").value, api_key: D("api-key").value,
+                            model_name: D("model-name").value, test_prompt: D("test-prompt").value,
+                            timeout: D("timeout").value, concurrency: D("concurrency").value },
+              betaLoaded: D("base-url").value === beta.base_url && D("api-key").value === beta.api_key,
+              wrongWrites,
+            };
+
+            await ipc("profile_delete", { profileId: alphaId });
+            await ipc("profile_delete", { profileId: betaId });
+            D("profile-refresh-btn").click();
+            await pick("");
+            D("profile-reset-btn").click();
+          } catch (error) {
+            log.switchProfile = { ok: false, error: String(error && error.message ? error.message : error) };
+          }
+
           D("base-url").value = "http://127.0.0.1:8899/v1";
           D("api-key").value = "mock-key-1234567890";
           D("auto-detect").checked = true;

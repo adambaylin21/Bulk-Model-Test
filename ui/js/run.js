@@ -33,7 +33,7 @@ export function collectForm() {
   };
 }
 
-/** Đổ một profile vào cột Thiết lập. */
+/** Đổ một profile vào cột Thiết lập. Chỉ đọc profile, không ghi lại vào file. */
 export function applyProfile(profile) {
   $("base-url").value = profile.base_url || "";
   $("api-key").value = profile.api_key || "";
@@ -46,7 +46,7 @@ export function applyProfile(profile) {
 
   syncConcurrency();
   syncModelField();
-  saveForm();
+  cacheForm();
 }
 
 /* -------------------------------------------------------------------- UI */
@@ -185,8 +185,14 @@ function resetPanels() {
   if (chart) { chart.destroy(); chart = null; }
 }
 
-function saveForm() {
+/** Nhớ các giá trị đang nhập vào localStorage, không đụng tới file profile. */
+function cacheForm() {
   localStorage.setItem(FORM_KEY, JSON.stringify(collectForm()));
+}
+
+/** Ghi lại các giá trị đang nhập vào profile đang dùng, im lặng. */
+function saveForm() {
+  cacheForm();
   saveFormQuietly();
 }
 
